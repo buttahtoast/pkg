@@ -18,7 +18,6 @@ import (
 	"github.com/buttahtoast/pkg/decryptors/sops/kustomize-controller/azkv"
 	intkeyservice "github.com/buttahtoast/pkg/decryptors/sops/kustomize-controller/keyservice"
 	"github.com/buttahtoast/pkg/decryptors/sops/kustomize-controller/pgp"
-	"go.etcd.io/etcd/client"
 	"go.mozilla.org/sops/v3"
 	"go.mozilla.org/sops/v3/aes"
 	"go.mozilla.org/sops/v3/cmd/sops/common"
@@ -84,8 +83,6 @@ var (
 // The only supported decryption provider at present is
 // DecryptionProviderSOPS.
 type SOPSDecryptor struct {
-	// client is the Kubernetes client used to e.g. retrieve Secrets with.
-	client client.Client
 	// maxFileSize is the max size in bytes a file is allowed to have to be
 	// decrypted. Defaults to maxEncryptedFileSize.
 	maxFileSize int64
