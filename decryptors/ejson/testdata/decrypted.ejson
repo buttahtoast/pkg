@@ -1,0 +1,6 @@
+{
+	"data": {
+	  "database_password": "VERY_SECRET",
+	  "database_user": "MUCH_SECURE"
+	}
+}

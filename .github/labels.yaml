@@ -1,0 +1,12 @@
+# Configuration file to declaratively configure labels
+# Ref: https://github.com/EndBug/label-sync#Config-files
+
+- name: type/dependencies
+  description: Dependency related issues and pull requests
+  color: '#00b140'
+- name: type/decryptors
+  description: Package decryptors related issues and pull requests
+  color: '#006b75'
+- name: type/documentation
+  description: Documentation related issues and pull requests
+  color: '#2819CB'
