@@ -1,4 +1,4 @@
-package decryptors
+package sops
 
 import (
 	"bytes"
@@ -6,25 +6,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/user"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/fluxcd/kustomize-controller/internal/sops/age"
-	"github.com/fluxcd/kustomize-controller/internal/sops/awskms"
-	"github.com/fluxcd/kustomize-controller/internal/sops/azkv"
-	intkeyservice "github.com/fluxcd/kustomize-controller/internal/sops/keyservice"
-	"github.com/fluxcd/kustomize-controller/internal/sops/pgp"
+	"github.com/buttahtoast/pkg/decryptors"
+	"github.com/buttahtoast/pkg/decryptors/sops/kustomize-controller/age"
+	"github.com/buttahtoast/pkg/decryptors/sops/kustomize-controller/awskms"
+	"github.com/buttahtoast/pkg/decryptors/sops/kustomize-controller/azkv"
+	intkeyservice "github.com/buttahtoast/pkg/decryptors/sops/kustomize-controller/keyservice"
+	"github.com/buttahtoast/pkg/decryptors/sops/kustomize-controller/pgp"
 	"go.etcd.io/etcd/client"
-	"go.mozilla.org/sops/keyservice"
 	"go.mozilla.org/sops/v3"
 	"go.mozilla.org/sops/v3/aes"
 	"go.mozilla.org/sops/v3/cmd/sops/common"
 	"go.mozilla.org/sops/v3/cmd/sops/formats"
+	"go.mozilla.org/sops/v3/keyservice"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -121,45 +120,75 @@ type SOPSDecryptor struct {
 	localServiceOnce sync.Once
 
 	// Interface decryptor config
-	Config DecryptorConfig
+	Config decryptors.DecryptorConfig
 }
 
 // NewDecryptor creates a new Decryptor for the given kustomization.
 // gnuPGHome can be empty, in which case the systems' keyring is used.
-func NewSOPSDecryptor(maxFileSize int64, gnuPGHome string) *SOPSDecryptor {
-	gnuPGHome, err := pgp.NewGnuPGHome()
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot create decryptor: %w", err)
-	}
+func NewSOPSDecryptor(config decryptors.DecryptorConfig, gnuPGHome string) *SOPSDecryptor {
 	return &SOPSDecryptor{
-		maxFileSize: maxFileSize,
+		maxFileSize: maxEncryptedFileSize,
 		gnuPGHome:   pgp.GnuPGHome(gnuPGHome),
+		Config:      config,
 	}
 }
 
 // NewTempDecryptor creates a new Decryptor, with a temporary GnuPG
 // home directory to Decryptor.ImportKeys() into.
-func NewTempDecryptor() (*SOPSDecryptor, func(), error) {
+func NewSOPSTempDecryptor(config decryptors.DecryptorConfig) (*SOPSDecryptor, func(), error) {
 	gnuPGHome, err := pgp.NewGnuPGHome()
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot create decryptor: %w", err)
 	}
 	cleanup := func() { _ = os.RemoveAll(gnuPGHome.String()) }
-	return NewSOPSDecryptor(maxEncryptedFileSize, gnuPGHome.String()), cleanup, nil
+	return NewSOPSDecryptor(config, gnuPGHome.String()), cleanup, nil
 }
 
 // IsEncrypted returns true if the given data is encrypted by SOPS.
 func (d *SOPSDecryptor) IsEncrypted(data []byte) (bool, error) {
-	var jdata map[string]interface{}
-	err := json.Unmarshal(data, &jdata)
+	if len(data) == 0 {
+		return false, nil
+	}
+
+	jdata, err := decryptors.UnmarshalJSONorYAML(data)
 	if err != nil {
 		return false, err
 	}
+
 	sopsField := jdata["sops"]
 	if sopsField == nil || sopsField == "" {
 		return false, nil
 	}
 	return true, nil
+}
+
+// Read reads the input data, decrypts it, and returns the decrypted data.
+func (d *SOPSDecryptor) Decrypt(data []byte) (content map[string]interface{}, err error) {
+
+	content, err = decryptors.UnmarshalJSONorYAML(data)
+	if err != nil {
+		return nil, err
+	}
+
+	if !d.Config.SkipDecrypt {
+		jcontent, err := json.Marshal(content)
+		if err != nil {
+			return nil, err
+		}
+
+		data, err = d.SopsDecryptWithFormat(jcontent, formats.Json, formats.Json)
+		if err != nil {
+			return nil, err
+		}
+
+		content, err = decryptors.UnmarshalJSONorYAML(data)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	delete(content, "sops")
+	return content, nil
 }
 
 // AddGPGKey adds given GPG key to the decryptor's keyring.
@@ -168,15 +197,47 @@ func (d *SOPSDecryptor) AddGPGKey(key []byte) error {
 }
 
 // AddAgeKey to the decryptor's identities.
-func (d *SOPSDecryptor) AddAgeKey(key []byte) {
+func (d *SOPSDecryptor) AddAgeKey(key []byte) error {
 	return d.ageIdentities.Import(string(key))
+}
+
+// SetVaultToken sets the Vault token for the decryptor.
+func (d *SOPSDecryptor) SetVaultToken(token []byte) {
+	vtoken := string(token)
+	vtoken = strings.Trim(strings.TrimSpace(vtoken), "\n")
+	d.vaultToken = vtoken
+}
+
+// SetAWSCredentials adds AWS credentials for the decryptor.
+// Reference: https://github.com/getsops/sops#aws-kms-encryption-context
+func (d *SOPSDecryptor) SetAWSCredentials(token []byte) (err error) {
+	d.awsCredsProvider, err = awskms.LoadCredsProviderFromYaml(token)
+	return err
+}
+
+// SetAzureAuthFile adds AWS credentials for the decryptor.
+func (d *SOPSDecryptor) SetAzureCredentials(config []byte) (err error) {
+	conf := azkv.AADConfig{}
+	if err = azkv.LoadAADConfigFromBytes(config, &conf); err != nil {
+		return err
+	}
+	if d.azureToken, err = azkv.TokenFromAADConfig(conf); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// SetGCPCredentials adds GCP credentials for the decryptor.
+func (d *SOPSDecryptor) SetGCPCredentials(config []byte) {
+	d.gcpCredsJSON = bytes.Trim(config, "\n")
 }
 
 func (d *SOPSDecryptor) KeysFromSecret(secretName string, namespace string, client *kubernetes.Clientset, ctx context.Context) (err error) {
 	// Retrieve Secret
 	keySecret, err := client.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
-		return &MissingKubernetesSecret{Secret: secretName, Namespace: namespace}
+		return &decryptors.MissingKubernetesSecret{Secret: secretName, Namespace: namespace}
 	} else if err != nil {
 		return err
 	}
@@ -195,53 +256,28 @@ func (d *SOPSDecryptor) KeysFromSecret(secretName string, namespace string, clie
 		case filepath.Ext(DecryptionVaultTokenFileName):
 			// Make sure we have the absolute name
 			if name == DecryptionVaultTokenFileName {
-				token := string(value)
-				token = strings.Trim(strings.TrimSpace(token), "\n")
-				d.vaultToken = token
+				d.SetVaultToken(value)
 			}
 		case filepath.Ext(DecryptionAWSKmsFile):
 			if name == DecryptionAWSKmsFile {
-				if d.awsCredsProvider, err = awskms.LoadCredsProviderFromYaml(value); err != nil {
+				if d.SetAWSCredentials(value); err != nil {
 					return fmt.Errorf("failed to import data from %s decryption Secret '%s': %w", name, secretName, err)
 				}
 			}
 		case filepath.Ext(DecryptionAzureAuthFile):
-			// Make sure we have the absolute name
 			if name == DecryptionAzureAuthFile {
-				conf := azkv.AADConfig{}
-				if err = azkv.LoadAADConfigFromBytes(value, &conf); err != nil {
-					return fmt.Errorf("failed to import data from %s decryption Secret '%s': %w", name, secretName, err)
-				}
-				if d.azureToken, err = azkv.TokenFromAADConfig(conf); err != nil {
+				if err = d.SetAzureCredentials(value); err != nil {
 					return fmt.Errorf("failed to import data from %s decryption Secret '%s': %w", name, secretName, err)
 				}
 			}
 		case filepath.Ext(DecryptionGCPCredsFile):
 			if name == DecryptionGCPCredsFile {
-				d.gcpCredsJSON = bytes.Trim(value, "\n")
+				d.SetGCPCredentials(value)
 			}
 		}
 	}
 
 	return nil
-}
-
-// Read reads the input data, decrypts it, and returns the decrypted data.
-func (d *SOPSDecryptor) Decrypt(data []byte) (content map[string]interface{}, err error) {
-	if !d.Config.SkipDecrypt {
-		data, err = d.SopsDecryptWithFormat(data, formats.Json, formats.Json)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = json.Unmarshal(data, &content)
-	if err != nil {
-		return nil, err
-	}
-	delete(content, "sops")
-
-	return content, err
 }
 
 // SopsDecryptWithFormat attempts to load a SOPS encrypted file using the store
@@ -356,49 +392,4 @@ func detectFormatFromMarkerBytes(b []byte) formats.Format {
 		}
 	}
 	return unsupportedFormat
-}
-
-// keyServiceServer returns the SOPS (local) key service clients used to serve
-// decryption requests. loadKeyServiceServers() is only configured on the first
-// call.
-// loadKeyServiceServers loads the SOPS (local) key service clients used to
-// func (d *SOPSDecryptor) keyServiceServer() []keyservice.KeyServiceClient {
-// 	d.localServiceOnce.Do(func() {
-// 		d.loadKeyServiceServers()
-// 	})
-// 	return d.keyServices
-// }
-
-// // loadKeyServiceServers loads the SOPS (local) key service clients used to
-// // serve decryption requests for the current set of Decryptor
-// // credentials.
-// func (d *SOPSDecryptor) loadKeyServiceServers() {
-// 	serverOpts := []intkeyservice.ServerOption{
-// 		intkeyservice.WithGnuPGHome(d.gnuPGHome),
-// 		intkeyservice.WithVaultToken(d.vaultToken),
-// 		intkeyservice.WithAgeIdentities(d.ageIdentities),
-// 		intkeyservice.WithGCPCredsJSON(d.gcpCredsJSON),
-// 	}
-// 	if d.azureToken != nil {
-// 		serverOpts = append(serverOpts, intkeyservice.WithAzureToken{Token: d.azureToken})
-// 	}
-// 	serverOpts = append(serverOpts, intkeyservice.WithAWSKeys{CredsProvider: d.awsCredsProvider})
-// 	server := intkeyservice.NewServer(serverOpts...)
-// 	d.keyServices = append(make([]keyservice.KeyServiceClient, 0), keyservice.NewCustomLocalClient(server))
-// }
-
-func gpgHome() string {
-	dir := os.Getenv("GNUPGHOME")
-	if dir == "" {
-		usr, err := user.Current()
-		if err != nil {
-			return path.Join(os.Getenv("HOME"), "/.gnupg")
-		}
-		return path.Join(usr.HomeDir, ".gnupg")
-	}
-	return dir
-}
-
-func secRing() string {
-	return fmt.Sprint(gpgHome() + "/secring.gpg")
 }

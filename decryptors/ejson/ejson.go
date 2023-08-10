@@ -1,4 +1,4 @@
-package decryptors
+package ejson
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -14,25 +15,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Shopify/ejson"
+	"github.com/buttahtoast/pkg/decryptors"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
-	publicKeyField = "_public_key"
+	// PublicKeyField is the field name of the public key in the ejson
+	PublicKeyField = "_public_key"
+	// DecryptionEjsonExt is the extension of the file containing an ejson prviate key
+	// file
+	DecryptionEjsonExt = ".key"
 )
 
 type EjsonDecryptor struct {
 	// stores all private keys for the decryptor
 	keys []string
-
 	// directory to search for ejson keys on disk
 	keyDirectory string
 	// Interface decryptor config
-	Config DecryptorConfig
+	Config decryptors.DecryptorConfig
 }
 
 // Initialize a new EJSON Decryptor
-func NewEJSONDecryptor(config DecryptorConfig, keyDirectory string, keys ...string) (*EjsonDecryptor, error) {
+func NewEJSONDecryptor(config decryptors.DecryptorConfig, keyDirectory string, keys ...string) (*EjsonDecryptor, error) {
 	init := &EjsonDecryptor{
 		keys:         []string{},
 		keyDirectory: keyDirectory,
@@ -54,12 +59,15 @@ func NewEJSONDecryptor(config DecryptorConfig, keyDirectory string, keys ...stri
 }
 
 func (d *EjsonDecryptor) IsEncrypted(data []byte) (bool, error) {
+	if len(data) == 0 {
+		return false, nil
+	}
 	var jdata map[string]interface{}
 	err := json.Unmarshal(data, &jdata)
 	if err != nil {
 		return false, err
 	}
-	f := jdata[publicKeyField]
+	f := jdata[PublicKeyField]
 	if f == nil || f == "" {
 		return false, nil
 	}
@@ -82,17 +90,21 @@ func (d *EjsonDecryptor) AddKey(key string) error {
 
 // Load Keys from Kubernetes Secret
 func (d *EjsonDecryptor) KeysFromSecret(secretName string, namespace string, client *kubernetes.Clientset, ctx context.Context) (err error) {
-	kubernetesSecret, err := client.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
+	keySecret, err := client.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
-		return &MissingKubernetesSecret{Secret: secretName, Namespace: namespace}
+		return &decryptors.MissingKubernetesSecret{Secret: secretName, Namespace: namespace}
 	} else if err != nil {
 		return err
 	}
 
 	// Exract all keys from secret
-	for s := range kubernetesSecret.Data {
-		key := string(kubernetesSecret.Data[s])
-		d.AddKey(key)
+	for name, value := range keySecret.Data {
+		if filepath.Ext(name) == DecryptionEjsonExt {
+			err := d.AddKey(string(value))
+			if err != nil {
+				return fmt.Errorf("failed to import data from %s decryption Secret '%s': %w", name, secretName, err)
+			}
+		}
 	}
 
 	return nil
@@ -114,7 +126,7 @@ func (d *EjsonDecryptor) Decrypt(data []byte) (content map[string]interface{}, e
 	}
 
 	// Remove Public Key information
-	delete(content, publicKeyField)
+	delete(content, PublicKeyField)
 
 	return content, err
 }

@@ -1,4 +1,4 @@
-package decryptors
+package ejson
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/buttahtoast/pkg/decryptors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,13 +40,19 @@ const FaultyEjsonContent = `{
 	}
 }`
 
+func testdataPath() string {
+	basePath, _ := os.Getwd()
+	hackDirPath := filepath.Join(basePath, "decryptors", "ejson", "testdata")
+	return hackDirPath
+}
+
 func testkeydirPath() string {
 	hackDirPath := filepath.Join(testdataPath(), "ejson", "keydir")
 	return hackDirPath
 }
 
 func TestAddKey(t *testing.T) {
-	decryptor, err := NewEJSONDecryptor(DecryptorConfig{}, "")
+	decryptor, err := NewEJSONDecryptor(decryptors.DecryptorConfig{}, "")
 	if err != nil {
 		t.Fatalf("Failed to create decryptor: %v", err)
 	}
@@ -56,7 +63,7 @@ func TestAddKey(t *testing.T) {
 }
 
 func TestMultipleKeyFromDiskAddition(t *testing.T) {
-	decryptor, err := NewEJSONDecryptor(DecryptorConfig{}, testkeydirPath())
+	decryptor, err := NewEJSONDecryptor(decryptors.DecryptorConfig{}, testkeydirPath())
 	if err != nil {
 		t.Fatalf("Failed to create decryptor: %v", err)
 	}
@@ -76,7 +83,7 @@ func TestMultipleKeyFromDiskAddition(t *testing.T) {
 
 func TestMultipleKeyAddition(t *testing.T) {
 	var keysFromFile []string
-	decryptor, err := NewEJSONDecryptor(DecryptorConfig{}, testkeydirPath())
+	decryptor, err := NewEJSONDecryptor(decryptors.DecryptorConfig{}, testkeydirPath())
 	if err != nil {
 		t.Fatalf("Failed to create decryptor: %v", err)
 	}
@@ -102,7 +109,7 @@ func TestMultipleKeyAddition(t *testing.T) {
 
 func TestAddFaultyKey(t *testing.T) {
 	faultyKey := "65b2f2060e6e3a9764b1d9e0fe54174fa7b36aca1f50e"
-	decryptor, err := NewEJSONDecryptor(DecryptorConfig{}, "")
+	decryptor, err := NewEJSONDecryptor(decryptors.DecryptorConfig{}, "")
 	if err != nil {
 		t.Fatalf("Failed to create decryptor: %v", err)
 	}
@@ -113,7 +120,7 @@ func TestAddFaultyKey(t *testing.T) {
 }
 
 func TestIsEncrypted(t *testing.T) {
-	decryptor, err := NewEJSONDecryptor(DecryptorConfig{}, "")
+	decryptor, err := NewEJSONDecryptor(decryptors.DecryptorConfig{}, "")
 	if err != nil {
 		t.Fatalf("Failed to create decryptor: %v", err)
 	}
@@ -124,7 +131,7 @@ func TestIsEncrypted(t *testing.T) {
 }
 
 func TestDecrypt(t *testing.T) {
-	decryptor, err := NewEJSONDecryptor(DecryptorConfig{SkipDecrypt: false}, "")
+	decryptor, err := NewEJSONDecryptor(decryptors.DecryptorConfig{SkipDecrypt: false}, "")
 	if err != nil {
 		t.Fatalf("Failed to create decryptor: %v", err)
 	}
