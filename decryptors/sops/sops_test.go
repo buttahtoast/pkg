@@ -11,12 +11,12 @@ import (
 
 func testdataPath() string {
 	basePath, _ := os.Getwd()
-	hackDirPath := filepath.Join(basePath, "decryptors", "ejson", "testdata")
+	hackDirPath := filepath.Join(basePath, "testdata")
 	return hackDirPath
 }
 
 func TestSOPSIsEncrypted(t *testing.T) {
-	d, _ := os.ReadFile(filepath.Join(testdataPath(), "sops", "secret-pgp.yaml"))
+	d, _ := os.ReadFile(filepath.Join(testdataPath(), "secret-pgp.yaml"))
 
 	decryptor := NewSOPSDecryptor(decryptors.DecryptorConfig{}, "")
 	isEncrypted, err := decryptor.IsEncrypted(d)
@@ -26,7 +26,7 @@ func TestSOPSIsEncrypted(t *testing.T) {
 }
 
 func TestSOPSIsNotEncrypted(t *testing.T) {
-	d, _ := os.ReadFile(filepath.Join(testdataPath(), "sops", "secret.yaml"))
+	d, _ := os.ReadFile(filepath.Join(testdataPath(), "secret.yaml"))
 
 	decryptor := NewSOPSDecryptor(decryptors.DecryptorConfig{}, "")
 	isEncrypted, err := decryptor.IsEncrypted(d)
@@ -36,8 +36,8 @@ func TestSOPSIsNotEncrypted(t *testing.T) {
 }
 
 func TestSOPSGPGEncryption(t *testing.T) {
-	private, _ := os.ReadFile(filepath.Join(testdataPath(), "sops", "pgp.asc"))
-	d, _ := os.ReadFile(filepath.Join(testdataPath(), "sops", "secret-pgp.yaml"))
+	private, _ := os.ReadFile(filepath.Join(testdataPath(), "pgp.asc"))
+	d, _ := os.ReadFile(filepath.Join(testdataPath(), "secret-pgp.yaml"))
 
 	decryptor, cleanup, err := NewSOPSTempDecryptor(decryptors.DecryptorConfig{})
 	assert.NoError(t, err, "Expected no error when initializing decryptor")
@@ -55,8 +55,8 @@ func TestSOPSGPGEncryption(t *testing.T) {
 }
 
 func TestSOPSAgeEncryption(t *testing.T) {
-	private, _ := os.ReadFile(filepath.Join(testdataPath(), "sops", "age.agekey"))
-	d, _ := os.ReadFile(filepath.Join(testdataPath(), "sops", "secret-age.yaml"))
+	private, _ := os.ReadFile(filepath.Join(testdataPath(), "age.agekey"))
+	d, _ := os.ReadFile(filepath.Join(testdataPath(), "secret-age.yaml"))
 
 	decryptor, cleanup, err := NewSOPSTempDecryptor(decryptors.DecryptorConfig{})
 	assert.NoError(t, err, "Expected no error when initializing decryptor")

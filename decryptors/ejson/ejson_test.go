@@ -42,12 +42,12 @@ const FaultyEjsonContent = `{
 
 func testdataPath() string {
 	basePath, _ := os.Getwd()
-	hackDirPath := filepath.Join(basePath, "decryptors", "ejson", "testdata")
+	hackDirPath := filepath.Join(basePath, "testdata")
 	return hackDirPath
 }
 
 func testkeydirPath() string {
-	hackDirPath := filepath.Join(testdataPath(), "ejson", "keydir")
+	hackDirPath := filepath.Join(testdataPath(), "keydir")
 	return hackDirPath
 }
 
@@ -79,6 +79,8 @@ func TestMultipleKeyFromDiskAddition(t *testing.T) {
 			assert.Contains(t, decryptor.keys, keyContent, "Expected the key to be added to the keys slice")
 		}
 	}
+	expectedSize := 3
+	assert.Len(t, decryptor.keys, expectedSize, "Expected array to have size %d, but it has size %d.", expectedSize, len(decryptor.keys))
 }
 
 func TestMultipleKeyAddition(t *testing.T) {

@@ -89,6 +89,8 @@ func (d *EjsonDecryptor) AddKey(key string) error {
 }
 
 // Load Keys from Kubernetes Secret
+// Only keys within the secret with the extension .key
+// will be loaded as ejson private keys
 func (d *EjsonDecryptor) KeysFromSecret(secretName string, namespace string, client *kubernetes.Clientset, ctx context.Context) (err error) {
 	keySecret, err := client.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
@@ -171,7 +173,6 @@ func (d *EjsonDecryptor) read(data []byte) (content []byte, err error) {
 
 func (d *EjsonDecryptor) findPrivateKeysFromDisk() error {
 	if _, err := os.Stat(d.keyDirectory); os.IsNotExist(err) {
-		fmt.Printf("Key directory %s does not exist, skipping\n", d.keyDirectory)
 		return nil
 	}
 	files, err := os.ReadDir(d.keyDirectory)
