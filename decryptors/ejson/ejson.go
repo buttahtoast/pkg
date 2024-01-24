@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,12 +61,14 @@ func (d *EjsonDecryptor) IsEncrypted(data []byte) (bool, error) {
 	if len(data) == 0 {
 		return false, nil
 	}
-	var jdata map[string]interface{}
-	err := json.Unmarshal(data, &jdata)
+
+	var content map[string]interface{}
+	content, err := decryptors.UnmarshalJSONorYAML(data)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("FAILED: %w", err)
 	}
-	f := jdata[PublicKeyField]
+
+	f := content[PublicKeyField]
 	if f == nil || f == "" {
 		return false, nil
 	}
@@ -122,9 +123,10 @@ func (d *EjsonDecryptor) Decrypt(data []byte) (content map[string]interface{}, e
 		}
 	}
 
-	err = json.Unmarshal(data, &content)
+	content, err = decryptors.UnmarshalJSONorYAML(data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("HELLO to unmarshal ejson: %w", err)
+		//return nil, err
 	}
 
 	// Remove Public Key information
