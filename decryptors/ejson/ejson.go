@@ -65,7 +65,7 @@ func (d *EjsonDecryptor) IsEncrypted(data []byte) (bool, error) {
 	var content map[string]interface{}
 	content, err := decryptors.UnmarshalJSONorYAML(data)
 	if err != nil {
-		return false, fmt.Errorf("FAILED: %w", err)
+		return false, err
 	}
 
 	f := content[PublicKeyField]

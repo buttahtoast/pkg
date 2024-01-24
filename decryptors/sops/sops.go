@@ -149,7 +149,7 @@ func (d *SOPSDecryptor) IsEncrypted(data []byte) (bool, error) {
 
 	jdata, err := decryptors.UnmarshalJSONorYAML(data)
 	if err != nil {
-		return false, fmt.Errorf("FAILED: %w", err)
+		return false, err
 	}
 
 	sopsField := jdata["sops"]
