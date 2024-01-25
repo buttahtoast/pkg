@@ -135,10 +135,15 @@ func NewSOPSDecryptor(config decryptors.DecryptorConfig, gnuPGHome string) *SOPS
 func NewSOPSTempDecryptor(config decryptors.DecryptorConfig) (*SOPSDecryptor, func(), error) {
 	gnuPGHome, err := pgp.NewGnuPGHome()
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot create decryptor: %w", err)
+		return nil, nil, fmt.Errorf("cannot create keyring: %w", err)
 	}
 	cleanup := func() { _ = os.RemoveAll(gnuPGHome.String()) }
 	return NewSOPSDecryptor(config, gnuPGHome.String()), cleanup, nil
+}
+
+// Only call this for Temporary Decryptors
+func (d *SOPSDecryptor) RemoveKeyRing() error {
+	return os.RemoveAll(string(d.gnuPGHome))
 }
 
 // IsEncrypted returns true if the given data is encrypted by SOPS.
