@@ -1,6 +1,6 @@
 module github.com/buttahtoast/pkg/decryptors
 
-go 1.20
+go 1.22.0
 
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.7
 
@@ -69,7 +69,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
-	github.com/cloudflare/circl v1.3.3 // indirect
+	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/containerd/continuity v0.4.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
