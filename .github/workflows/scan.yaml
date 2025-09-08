@@ -28,13 +28,13 @@ jobs:
             **/go.sum
             **/go.mod
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@cdcdbb579706841c47f7063dda365e292e5cad7a # v2.13.4
+        uses: github/codeql-action/init@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
         with:
           languages: go
           # xref: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
           # xref: https://codeql.github.com/codeql-query-help/go/
           queries: security-and-quality
       - name: Autobuild
-        uses: github/codeql-action/autobuild@cdcdbb579706841c47f7063dda365e292e5cad7a # v2.13.4
+        uses: github/codeql-action/autobuild@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@cdcdbb579706841c47f7063dda365e292e5cad7a # v2.13.4
+        uses: github/codeql-action/analyze@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
