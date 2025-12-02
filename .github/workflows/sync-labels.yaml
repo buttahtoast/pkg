@@ -17,7 +17,7 @@ jobs:
     permissions:
       issues: write
     steps:
-      - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
+      - uses: actions/checkout@033fa0dc0b82693d8986f1016a0ec2c5e7d9cbb1 # v4.0.0
       - uses: EndBug/label-sync@da00f2c11fdb78e4fae44adac2fdd713778ea3e8 # v2.3.2
         with:
           # Configuration file
